@@ -1,13 +1,12 @@
 import cv2
 import numpy as np
 import RPi.GPIO as GPIO
-import smbus 
 import time
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-# --- Updated Motor Pins (No ENA/ENB) ---
+# --- Motor Pins (No ENA/ENB) ---
 IN1 = 17  
 IN2 = 15  
 IN3 = 23  
@@ -27,13 +26,6 @@ pwm_in1.start(0)
 pwm_in2.start(0)
 pwm_in3.start(0)
 pwm_in4.start(0)
-
-try:
-    bus = smbus.SMBus(1)
-    bus.write_byte_data(0x68, 0x6B, 0)
-    print("MPU6050 initialized successfully.")
-except:
-    print("Warning: MPU6050 not detected. Check I2C wiring.")
 
 def set_motor_speed(left_speed, right_speed):
     """Safely constraints speed between 0-100 and applies PWM directly to IN pins."""
