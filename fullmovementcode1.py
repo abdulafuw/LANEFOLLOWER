@@ -6,7 +6,7 @@ import time
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-# --- Motor Pins (No ENA/ENB) ---
+# --- Motor Pins ---
 IN1 = 17  
 IN2 = 15  
 IN3 = 23  
@@ -34,7 +34,6 @@ def set_motor_speed(left_speed, right_speed):
     right_speed = max(0, min(100, right_speed))
 
     # To move forward: pulse IN1/IN3, keep IN2/IN4 off.
-    # (If your robot moves backward instead, swap IN1 with IN2, and IN3 with IN4 here)
     pwm_in1.ChangeDutyCycle(left_speed)
     pwm_in2.ChangeDutyCycle(0)
     
@@ -55,50 +54,22 @@ try:
             print("Failed to grab frame")
             break
 
+        # Region of Interest (bottom portion of the camera view)
         roi = frame[140:240, 0:320]
 
-        gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        # Convert the ROI to HSV color space for better color tracking
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-        _, thresh = cv2.threshold(gray, 100, 255, cv2.THRESH_BINARY)
+        # --- Red Color Masking ---
+        # Red hue wraps around the HSV color space, so we need two ranges
+        lower_red1 = np.array([0, 70, 50])
+        upper_red1 = np.array([10, 255, 255])
+        
+        lower_red2 = np.array([160, 70, 50])
+        upper_red2 = np.array([180, 255, 255])
 
-        scan_row = thresh[60, :]
-        white_pixel_columns = np.where(scan_row == 255)[0]
+        # Create masks for both red ranges
+        mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
+        mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
 
-        if len(white_pixel_columns) > 0:
-
-            lane_center = int(np.mean(white_pixel_columns))
-            image_center = 160
-
-            error = lane_center - image_center
-
-            kp = 0.4
-            steering_adjustment = error * kp
-
-            base_speed = 35
-            final_left_speed = base_speed + steering_adjustment
-            final_right_speed = base_speed - steering_adjustment
-
-            set_motor_speed(final_left_speed, final_right_speed)
-
-        else:
-            set_motor_speed(0, 0)
-
-        cv2.imshow("Robot Camera View", thresh)
-
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-except KeyboardInterrupt:
-    print("\nCtrl+C detected. Shutting down engines...")
-
-finally:
-    # Safely stop all PWM signals before cleaning up
-    pwm_in1.stop()
-    pwm_in2.stop()
-    pwm_in3.stop()
-    pwm_in4.stop()
-    
-    GPIO.cleanup()
-    cap.release()
-    cv2.destroyAllWindows()
-    print("Hardware released safely.")
+        # Combine the masks. The red lane will now be
