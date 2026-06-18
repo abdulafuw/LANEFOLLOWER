@@ -72,4 +72,49 @@ try:
         mask1 = cv2.inRange(hsv, lower_red1, upper_red1)
         mask2 = cv2.inRange(hsv, lower_red2, upper_red2)
 
-        # Combine the masks. The red lane will now be
+        # Combine the masks. The red lane will now be white (255) and the white background will be black (0)
+        thresh = cv2.bitwise_or(mask1, mask2)
+
+        # Scan a specific row to find the lane
+        scan_row = thresh[60, :]
+        white_pixel_columns = np.where(scan_row == 255)[0]
+
+        if len(white_pixel_columns) > 0:
+
+            lane_center = int(np.mean(white_pixel_columns))
+            image_center = 160
+
+            error = lane_center - image_center
+
+            kp = 0.4
+            steering_adjustment = error * kp
+
+            base_speed = 35
+            final_left_speed = base_speed + steering_adjustment
+            final_right_speed = base_speed - steering_adjustment
+
+            set_motor_speed(final_left_speed, final_right_speed)
+
+        else:
+            set_motor_speed(0, 0)
+
+        # Show the binary mask where the red lane appears white
+        cv2.imshow("Robot Camera View", thresh)
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+except KeyboardInterrupt:
+    print("\nCtrl+C detected. Shutting down engines...")
+
+finally:
+    # Safely stop all PWM signals before cleaning up
+    pwm_in1.stop()
+    pwm_in2.stop()
+    pwm_in3.stop()
+    pwm_in4.stop()
+    
+    GPIO.cleanup()
+    cap.release()
+    cv2.destroyAllWindows()
+    print("Hardware released safely.")
